@@ -6,7 +6,8 @@ import jwt
 import datetime
 from flask import current_app
 
-from utils import token_required
+from utils import token_required,send_verification_email
+import random
 
 auth_bp = Blueprint('auth', __name__)
 @auth_bp.route('/register', methods=['POST'])
@@ -16,27 +17,55 @@ def register():
     email = data.get('email')
     password = data.get('password')
 
-    if not username or not email or not password:
+    if not username or not password or not email:
         return jsonify({'message': 'Missing required fields'}), 400
 
-    if User.query.filter((User.username == username) | (User.email == email)).first():
-        return jsonify({'message': 'Username or Email already exists'}), 409
+    user = User.query.filter_by(email=email).first()
+
+    if user:
+        if user.is_verified:
+            return jsonify({'message': 'User already exists'}), 409
+        else:
+
+            new_code = str(random.randint(100000, 999999))
+            user.verification_code = new_code
+            db.session.commit()
+
+            send_verification_email(email, new_code)
+
+            return jsonify({'message': 'You have already registered but not verified. A new code has been sent.'}), 202
+
 
     hashed_password = generate_password_hash(password)
-    new_user = User(username=username,email=email, password = hashed_password)
+    verification_code = str(random.randint(100000, 999999))
+
+    new_user = User(
+        username=username,
+        email=email,
+        password=hashed_password,
+        is_verified=False,
+        verification_code=verification_code
+    )
 
     db.session.add(new_user)
     db.session.commit()
 
-    token = jwt.encode({
-        'user_id': new_user.id,
-        'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1)
-    } , current_app.config['SECRET_KEY'], algorithm='HS256')
+    send_verification_email(email, verification_code)
 
     return jsonify({
-        'message': 'User registered successfully',
-        'token': token
+        'message': 'User registered. Please check your email to verify.',
+        'email':email
     }), 201
+
+    # token = jwt.encode({
+    #     'user_id': new_user.id,
+    #     'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1)
+    # } , current_app.config['SECRET_KEY'], algorithm='HS256')
+    #
+    # return jsonify({
+    #     'message': 'User registered successfully',
+    #     'token': token
+    # }), 201
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
@@ -47,6 +76,10 @@ def login():
     user = User.query.filter_by(username=username).first()
     if not user or not check_password_hash(user.password, password):
         return jsonify({'message': 'Invalid credentials'}), 401
+
+    if not user.is_verified:
+        return jsonify({'message': 'Account not verified'}), 403
+
     token = jwt.encode({
         'user_id': user.id,
         'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1)
@@ -66,3 +99,30 @@ def get_user_info(user_id):
         'username': user.username,
         'email': user.email,
     }),201
+
+@auth_bp.route('/verify', methods=['POST'])
+def verify_user():
+    data = request.get_json()
+    email = data.get('email')
+    code = data.get('code')
+
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+
+    if user.is_verified:
+        return jsonify({'message': 'User already verified'}), 400
+
+    if user.verification_code != code:
+        return jsonify({'message': 'Invalid verification code'}), 401
+
+    user.is_verified = True
+    user.verification_code = None
+    db.session.commit()
+
+    token = jwt.encode({
+        'user_id': user.id,
+        'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1)
+    }, current_app.config['SECRET_KEY'], algorithm='HS256')
+
+    return jsonify({'message': 'Verification successful', 'token': token}), 200

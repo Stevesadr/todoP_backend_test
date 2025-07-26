@@ -11,6 +11,9 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
 
+    is_verified = db.Column(db.Boolean, default=False)
+    verification_code = db.Column(db.String(6), nullable=True)
+
     todos = db.relationship("Todo" , backref="user" ,lazy=True)
 
 class Todo(db.Model):
