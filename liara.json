@@ -1,6 +1,7 @@
 {
   "app":"todopro",
   "port":8000,
+  "type": "gunicorn",
   "build":{
   "location":"iran"
   },
