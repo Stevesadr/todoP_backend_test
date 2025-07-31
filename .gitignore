@@ -1,1 +1,5 @@
-venv
+venv/
+TodoPro/
+*.pyc
+__pycache__/
+instance/
