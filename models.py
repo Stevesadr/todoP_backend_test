@@ -23,4 +23,8 @@ class Todo(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     task_date = db.Column(db.Date, nullable=False , default=date.today)
+    task_hour = db.Column(db.Integer, nullable=True)
+    task_minute = db.Column(db.Integer, nullable=True)
+
+    is_editable = db.Column(db.Boolean, default=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)

@@ -2,6 +2,7 @@ from flask import  jsonify, request, Blueprint
 from db import db
 from models import Todo
 from utils import token_required
+from collections import defaultdict
 from datetime import date
 
 todos_bp = Blueprint("todos" , __name__)
@@ -16,10 +17,37 @@ def get_todos(user_id):
             'todo_id' : todo.id,
             'title' : todo.title,
             'status' : todo.status,
-            'task_date' : todo.task_date.isoformat()
+            'task_date' : todo.task_date.isoformat(),
+            'task_hour': todo.task_hour,
+            'task_minute': todo.task_minute
         })
 
     return jsonify(results)
+
+
+@todos_bp.route('/history', methods=["GET"])
+@token_required
+def get_history(user_id):
+    try:
+        todos = Todo.query.filter_by(user_id=user_id, is_editable=False).all()
+
+        results = []
+        for todo in todos:
+            results.append({
+                'todo_id': todo.id,
+                'title': todo.title,
+                'status': todo.status,
+                'task_date': todo.task_date.isoformat() if todo.task_date else None,
+                'task_hour': todo.task_hour,
+                'task_minute': todo.task_minute,
+                'is_editable': todo.is_editable
+            })
+
+        return jsonify({'history': results}), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 @todos_bp.route('/add' , methods=["POST"])
 @token_required
@@ -27,11 +55,15 @@ def add_todo(user_id):
     data = request.get_json()
     title = data.get('title')
     task_date = data.get('task_date' , date.today().isoformat())
+    task_hour = data.get('task_hour')
+    task_minute = data.get('task_minute')
 
     new_todo = Todo(
         title = title,
         status=False,
         task_date = date.fromisoformat(task_date),
+        task_hour=task_hour,
+        task_minute=task_minute,
         user_id = user_id
     )
 
@@ -45,7 +77,9 @@ def add_todo(user_id):
             'todo_id' : todo.id,
             'title' : todo.title,
             'status' : todo.status,
-            'task_date' : todo.task_date.isoformat()
+            'task_date' : todo.task_date.isoformat(),
+            'task_hour': todo.task_hour,
+            'task_minute': todo.task_minute
         })
 
     return jsonify({'message' : 'Todo added', 'results' : results }),201
@@ -71,7 +105,9 @@ def update_todo(todo_id , user_id):
             'todo_id': todo.id,
             'title': todo.title,
             'status': todo.status,
-            'task_date': todo.task_date.isoformat()
+            'task_date': todo.task_date.isoformat(),
+            'task_hour': todo.task_hour,
+            'task_minute': todo.task_minute
         })
 
     return jsonify({'message': 'Todo updated' , 'results' : results}),201
@@ -95,7 +131,9 @@ def delete_todo(user_id , todo_id):
             'todo_id': todo.id,
             'title': todo.title,
             'status': todo.status,
-            'task_date': todo.task_date.isoformat()
+            'task_date': todo.task_date.isoformat(),
+            'task_hour': todo.task_hour,
+            'task_minute': todo.task_minute
         })
 
     return jsonify({'message': 'Todo deleted' , 'results' : results}), 201
